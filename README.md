@@ -12,7 +12,7 @@ Adding the following to your workflow will create an authorized_keys file based 
 ```yaml
 - uses: actions/checkout@v2
 - name: Create Sentry release
-  uses: actions/generate-authorized-keys-from-github-teams@v1
+  uses: actions/generate-authorized-keys@v1
     with:
       team: foo
       org: Bar
