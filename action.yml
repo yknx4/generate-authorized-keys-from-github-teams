@@ -1,0 +1,54 @@
+name: 'Generate Authorized Keys'
+description: 'Generates authorized_keys file from Organization Team users.'
+inputs:
+  org:
+    description: 'Github Organization'
+    required: true
+  team:
+    description: 'Organization Team'
+    required: true
+  github-token:
+    description: 'Github token to use. Defaults to `{{ github.token }}`'
+    required: false
+  path:
+    description: Where to store the authorized_keys file. Defaults to `{{ github.workspace }}`
+    required: false
+runs:
+  using: "composite"
+  steps:
+    - run: |
+        set -e
+        gh api graphql -F login='${{inputs.org}}' -F team='${{inputs.team}}' -f query='
+        query ($login: String!, $team: String!) {
+          organization(login: $login) {
+            team(slug: $team) {
+              members(first: 100) {
+                edges {
+                  node {
+                    name
+                    login
+                    publicKeys(first: 100) {
+                      edges {
+                        node {
+                          key
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+        ' --jq 'getpath(["data","organization", "team", "members", "edges"]) | map(.node | .publicKeys = (.publicKeys.edges | map(.node.key))) | map(select(.publicKeys | length >= 1)) | map({key:.publicKeys[], login}) | map(.key + " " + .login) | join("\n")' >> ${OUTPUT_DIR}/authorized_keys
+
+        if [ -s "${OUTPUT_DIR}/authorized_keys" ]; then
+          echo "File stored in ${OUTPUT_DIR}/authorized_keys."
+        else
+          echo "Failing because no public keys were detected"
+          exit 1
+        fi
+      shell: bash
+      env:
+        OUTPUT_DIR: ${{ inputs.path || github.workspace }}
+        GH_TOKEN: ${{ inputs.github-token || github.token }}
